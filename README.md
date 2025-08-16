@@ -1,7 +1,11 @@
-# digikey-auto-rocessing
-The part numbers of Digikey can be read from the Excel sheet and the part status (in stock / discontinued, etc.) can be obtained and written into the Excel file.
-As the author is not very experienced, please feel free to offer suggestions for improvement.
-First, go to digikey.com to apply for the API (product status), and then fill in the ID and secret into digikey.py.
-If you want to obtain DigiKey's API, please apply at digikey.com/api. Please note that it is for the production environment, not the sandbox environment.
+# digikey产品状态自动处理系统
+可以从 Excel 表格中读取 Digikey 的零件编号，并获取零件状态（有库存/已停产等）并写入 Excel 文件。（务必使用正确的零件编号，包括单个符号或空格在内的任何地方都不能有错误！！！！！！！！！！！！！！！！！！！！）
 
-Make sure to use the correct part number, including no errors in a single symbol or a space.！！！！！！！！！！！！！！！！！！！！
+由于作者经验不足，请随时提出改进建议。
+
+首先，前往 digikey.com 申请 API（产品状态），然后将 ID 和密钥填写到 digikey.py 中。
+
+如果您想获取 DigiKey 的 API，请在 digikey.com/api 申请。请注意，这是针对生产环境的，而非沙盒环境。
+
+关于申请API，请去wiki查看
+
