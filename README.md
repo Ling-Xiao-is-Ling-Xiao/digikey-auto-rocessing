@@ -37,9 +37,5 @@
 - 依赖见 `requirements.txt`，需提前 `pip install -r requirements.txt`。
 - 需 Python 3.7+。
 
-## 典型用例示例
-- **Web 端**：上传 `a.xlsx`，选择工作表和列，点击开始，轮询进度，下载结果。
-- **命令行**：`python main.py`，输入 `uploads/a.xlsx`、`Sheet1`、`产品编号`、`状态`。
-
 ## 其他说明
 - 关于如何使用，请查看wiki
