@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digi-Key 产品状态查询工具</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Digi-Key 产品状态查询工具</h1>
+            <button id="settings-btn" class="btn btn-icon">⚙️</button>
+        </div>
+        
+        <div class="card">
+            <h2>文件上传</h2>
+            <div class="form-group">
+                <label for="file-input">选择Excel文件</label>
+                <input type="file" id="file-input" accept=".xlsx,.xls">
+                <button id="upload-btn" class="btn">上传文件</button>
+            </div>
+            <div id="upload-status" class="status-message"></div>
+        </div>
+        
+        <div id="config-section" class="card" style="display: none;">
+            <h2>配置选项</h2>
+            <div class="form-group">
+                <label for="sheet-select">选择工作表</label>
+                <input type="text" id="sheet-select" placeholder="请输入工作表名称">
+            </div>
+            
+            <div class="form-group">
+                <label for="output-column">产品编号列</label>
+                <input type="text" id="output-column" placeholder="请输入产品编号列名">
+            </div>
+            
+            <div class="form-group">
+                <label>选择要查询的数据字段</label>
+                <div class="checkbox-group">
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="field-status" checked>
+                        <label for="field-status">产品状态</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="field-description" checked>
+                        <label for="field-description">产品描述</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="field-manufacturer" checked>
+                        <label for="field-manufacturer">制造商</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="field-product-url" checked>
+                        <label for="field-product-url">产品链接</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="field-datasheet-url" checked>
+                        <label for="field-datasheet-url">数据手册</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="field-quantity" checked>
+                        <label for="field-quantity">可用数量</label>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>自定义表头名称（留空则使用默认名称）</label>
+                <div class="header-inputs">
+                    <div class="header-input-item">
+                        <label for="header-status">产品状态</label>
+                        <input type="text" id="header-status" placeholder="默认: 产品状态">
+                    </div>
+                    <div class="header-input-item">
+                        <label for="header-description">产品描述</label>
+                        <input type="text" id="header-description" placeholder="默认: 产品描述">
+                    </div>
+                    <div class="header-input-item">
+                        <label for="header-manufacturer">制造商</label>
+                        <input type="text" id="header-manufacturer" placeholder="默认: 制造商">
+                    </div>
+                    <div class="header-input-item">
+                        <label for="header-product-url">产品链接</label>
+                        <input type="text" id="header-product-url" placeholder="默认: 产品链接">
+                    </div>
+                    <div class="header-input-item">
+                        <label for="header-datasheet-url">数据手册</label>
+                        <input type="text" id="header-datasheet-url" placeholder="默认: 数据手册">
+                    </div>
+                    <div class="header-input-item">
+                        <label for="header-quantity">可用数量</label>
+                        <input type="text" id="header-quantity" placeholder="默认: 可用数量">
+                    </div>
+                </div>
+            </div>
+            
+            <button id="start-processing" class="btn btn-primary">开始处理</button>
+        </div>
+        
+        <div id="progress-section" class="card" style="display: none;">
+            <h2>处理进度</h2>
+            <div class="progress-container">
+                <div class="progress-bar">
+                    <div id="progress-fill" class="progress-fill"></div>
+                </div>
+                <div id="progress-text">0%</div>
+            </div>
+            <div id="current-product" class="current-product">当前产品: </div>
+            <div id="status-message" class="status-message"></div>
+        </div>
+        
+        <div id="result-section" class="card" style="display: none;">
+            <h2>处理结果</h2>
+            <div id="result-message" class="status-message"></div>
+            <div class="button-group">
+                <button id="download-excel" class="btn btn-success">下载Excel文件</button>
+                <button id="download-json" class="btn btn-success">下载JSON结果</button>
+                <button id="reset-btn" class="btn">重新开始</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 设置面板 -->
+    <div class="settings-overlay" id="settings-overlay"></div>
+    <div id="settings-panel">
+        <button id="close-settings" class="close-btn">&times;</button>
+        <h2>设置</h2>
+        <div class="form-group">
+            <label for="api-key">Digi-Key API密钥</label>
+            <input type="password" id="api-key" placeholder="请输入API密钥">
+            <button id="save-api-key" class="btn">保存</button>
+        </div>
+        <div class="form-group">
+            <label for="request-delay">请求间隔（毫秒）</label>
+            <input type="number" id="request-delay" value="1000" min="500" max="5000" step="100">
+            <button id="save-delay" class="btn">保存</button>
+        </div>
+        <div class="form-group">
+            <label for="max-retries">最大重试次数</label>
+            <input type="number" id="max-retries" value="3" min="1" max="10" step="1">
+            <button id="save-retries" class="btn">保存</button>
+        </div>
+        <div id="settings-status" class="settings-status"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化设置
+            initSettings();
+            
+            const fileInput = document.getElementById('file-input');
+            const uploadBtn = document.getElementById('upload-btn');
+            const uploadStatus = document.getElementById('upload-status');
+            const configSection = document.getElementById('config-section');
+            const sheetSelect = document.getElementById('sheet-select');
+            const outputColumn = document.getElementById('output-column');
+            const resultColumn = document.getElementById('result-column');
+            const startProcessing = document.getElementById('start-processing');
+            const progressSection = document.getElementById('progress-section');
+            const progressFill = document.getElementById('progress-fill');
+            const progressText = document.getElementById('progress-text');
+            const currentProduct = document.getElementById('current-product');
+            const statusMessage = document.getElementById('status-message');
+            const resultSection = document.getElementById('result-section');
+            const resultMessage = document.getElementById('result-message');
+            const downloadExcel = document.getElementById('download-excel');
+            const downloadJson = document.getElementById('download-json');
+            const resetBtn = document.getElementById('reset-btn');
+            const settingsBtn = document.getElementById('settings-btn');
+            const settingsPanel = document.getElementById('settings-panel');
+            const closeSettings = document.getElementById('close-settings');
+            const settingsOverlay = document.getElementById('settings-overlay');
+            const saveApiKey = document.getElementById('save-api-key');
+            const saveDelay = document.getElementById('save-delay');
+            const saveRetries = document.getElementById('save-retries');
+            const apiKeyInput = document.getElementById('api-key');
+            const requestDelayInput = document.getElementById('request-delay');
+            const maxRetriesInput = document.getElementById('max-retries');
+            const settingsStatus = document.getElementById('settings-status');
+            
+            let uploadedFilename = '';
+            let resultFilename = '';
+            let statusCheckInterval = null;
+            
+            // 初始化设置
+            function initSettings() {
+                // 从本地存储加载设置
+                const savedApiKey = localStorage.getItem('digikey_api_key');
+                const savedDelay = localStorage.getItem('request_delay');
+                const savedRetries = localStorage.getItem('max_retries');
+                
+                if (savedApiKey) {
+                    apiKeyInput.value = savedApiKey;
+                }
+                if (savedDelay) {
+                    requestDelayInput.value = savedDelay;
+                }
+                if (savedRetries) {
+                    maxRetriesInput.value = savedRetries;
+                }
+            }
+            
+            // 保存API密钥
+            saveApiKey.addEventListener('click', function() {
+                const apiKey = apiKeyInput.value.trim();
+                if (apiKey) {
+                    localStorage.setItem('digikey_api_key', apiKey);
+                    showSettingsStatus('API密钥已保存', 'success');
+                } else {
+                    showSettingsStatus('请输入有效的API密钥', 'error');
+                }
+            });
+            
+            // 保存请求间隔
+            saveDelay.addEventListener('click', function() {
+                const delay = requestDelayInput.value;
+                if (delay && delay >= 500 && delay <= 5000) {
+                    localStorage.setItem('request_delay', delay);
+                    showSettingsStatus('请求间隔已保存', 'success');
+                } else {
+                    showSettingsStatus('请输入有效的请求间隔（500-5000毫秒）', 'error');
+                }
+            });
+            
+            // 保存最大重试次数
+            saveRetries.addEventListener('click', function() {
+                const retries = maxRetriesInput.value;
+                if (retries && retries >= 1 && retries <= 10) {
+                    localStorage.setItem('max_retries', retries);
+                    showSettingsStatus('最大重试次数已保存', 'success');
+                } else {
+                    showSettingsStatus('请输入有效的重试次数（1-10）', 'error');
+                }
+            });
+            
+            // 显示设置状态消息
+            function showSettingsStatus(message, type) {
+                settingsStatus.textContent = message;
+                settingsStatus.className = 'settings-status ' + type;
+                
+                // 3秒后隐藏消息
+                setTimeout(function() {
+                    settingsStatus.className = 'settings-status';
+                }, 3000);
+            }
+            
+            // 打开设置面板
+            settingsBtn.addEventListener('click', function() {
+                settingsPanel.classList.add('active');
+                settingsOverlay.classList.add('active');
+            });
+            
+            // 关闭设置面板
+            closeSettings.addEventListener('click', function() {
+                settingsPanel.classList.remove('active');
+                settingsOverlay.classList.remove('active');
+            });
+            
+            // 点击遮罩层关闭设置面板
+            settingsOverlay.addEventListener('click', function() {
+                settingsPanel.classList.remove('active');
+                settingsOverlay.classList.remove('active');
+            });
+            
+            // 上传文件
+            uploadBtn.addEventListener('click', function() {
+                if (!fileInput.files || !fileInput.files[0]) {
+                    showStatus(uploadStatus, '请先选择文件', 'error');
+                    return;
+                }
+                
+                const formData = new FormData();
+                formData.append('file', fileInput.files[0]);
+                
+                fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        uploadedFilename = data.filename;
+                        showStatus(uploadStatus, data.message, 'success');
+                        
+                        // 显示配置区域
+                        configSection.style.display = 'block';
+                    } else {
+                        showStatus(uploadStatus, data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    showStatus(uploadStatus, '上传失败: ' + error.message, 'error');
+                });
+            });
+            
+            // 选择工作表
+            sheetSelect.addEventListener('change', function() {
+                // 不再需要获取列选项，用户直接输入
+            });
+            
+            // 开始处理
+            startProcessing.addEventListener('click', function() {
+                const sheetName = sheetSelect.value.trim();
+                const columnName = outputColumn.value.trim();
+                
+                console.log('调试信息 - 工作表名称:', sheetName);
+                console.log('调试信息 - 列名:', columnName);
+                
+                if (!sheetName || !columnName) {
+                    showStatus(statusMessage, '请完成所有配置选项', 'error');
+                    return;
+                }
+                
+                // 获取选中的数据字段
+                const selectedFields = [];
+                if (document.getElementById('field-status').checked) selectedFields.push('status');
+                if (document.getElementById('field-description').checked) selectedFields.push('description');
+                if (document.getElementById('field-manufacturer').checked) selectedFields.push('manufacturer');
+                if (document.getElementById('field-product-url').checked) selectedFields.push('product_url');
+                if (document.getElementById('field-datasheet-url').checked) selectedFields.push('datasheet_url');
+                if (document.getElementById('field-quantity').checked) selectedFields.push('quantity_available');
+                
+                // 获取自定义表头名称
+                const customHeaders = {};
+                if (document.getElementById('field-status').checked) {
+                    customHeaders['status'] = document.getElementById('header-status').value.trim() || '状态';
+                }
+                if (document.getElementById('field-description').checked) {
+                    customHeaders['description'] = document.getElementById('header-description').value.trim() || '描述';
+                }
+                if (document.getElementById('field-manufacturer').checked) {
+                    customHeaders['manufacturer'] = document.getElementById('header-manufacturer').value.trim() || '制造商';
+                }
+                if (document.getElementById('field-product-url').checked) {
+                    customHeaders['product_url'] = document.getElementById('header-product-url').value.trim() || '产品链接';
+                }
+                if (document.getElementById('field-datasheet-url').checked) {
+                    customHeaders['datasheet_url'] = document.getElementById('header-datasheet-url').value.trim() || '数据手册';
+                }
+                if (document.getElementById('field-quantity').checked) {
+                    customHeaders['quantity_available'] = document.getElementById('header-quantity').value.trim() || '可用数量';
+                }
+                
+                console.log('调试信息 - 选中的数据字段:', selectedFields);
+                console.log('调试信息 - 自定义表头:', customHeaders);
+                
+                const requestBody = {
+                    filename: uploadedFilename,
+                    sheet_name: sheetName,
+                    column_name: columnName,
+                    selected_fields: selectedFields,
+                    custom_headers: customHeaders
+                };
+                
+                console.log('调试信息 - 请求体:', requestBody);
+                
+                fetch('/start_processing', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('调试信息 - 响应:', data);
+                    if (data.status === 'success') {
+                        progressSection.style.display = 'block';
+                        configSection.style.display = 'none';
+                        startStatusCheck();
+                    } else {
+                        showStatus(statusMessage, data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('调试信息 - 错误:', error);
+                    showStatus(statusMessage, '启动处理失败: ' + error.message, 'error');
+                });
+            });
+            
+            // 检查处理状态
+            function startStatusCheck() {
+                statusCheckInterval = setInterval(checkStatus, 1000);
+            }
+            
+            function checkStatus() {
+                fetch('/processing_status')
+                .then(response => response.json())
+                .then(data => {
+                    progressFill.style.width = data.progress + '%';
+                    progressText.textContent = Math.round(data.progress) + '%';
+                    currentProduct.textContent = '当前产品: ' + data.current_product;
+                    showStatus(statusMessage, data.message, 'info');
+                    
+                    if (!data.is_processing) {
+                        clearInterval(statusCheckInterval);
+                        resultSection.style.display = 'block';
+                        progressSection.style.display = 'none';
+                        showStatus(resultMessage, data.message, data.results ? 'success' : 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('检查状态失败:', error);
+                });
+            }
+            
+            // 下载Excel文件
+            downloadExcel.addEventListener('click', function() {
+                const filename = resultFilename || uploadedFilename;
+                window.location.href = '/download_result?filename=' + encodeURIComponent(filename);
+            });
+            
+            // 下载JSON结果
+            downloadJson.addEventListener('click', function() {
+                window.location.href = '/download_json';
+            });
+            
+            // 重置
+            resetBtn.addEventListener('click', function() {
+                location.reload();
+            });
+            
+            // 显示状态消息
+            function showStatus(element, message, type) {
+                element.textContent = message;
+                element.className = 'status-message ' + type;
+            }
+        });
+    </script>
+</body>
+</html>

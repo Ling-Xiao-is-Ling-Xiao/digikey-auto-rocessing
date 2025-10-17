@@ -3,11 +3,33 @@ import requests
 import logging
 from time import time
 from typing import Optional, Dict
+from datetime import datetime
 
+# 配置日志
+log_dir = 'logs'
+os.makedirs(log_dir, exist_ok=True)
+log_file = os.path.join(log_dir, f'digikey_{datetime.now().strftime("%Y%m%d")}.log')
 
+# 创建日志记录器
+logger = logging.getLogger('digikey_client')
+logger.setLevel(logging.INFO)
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# 创建文件处理器
+file_handler = logging.FileHandler(log_file, encoding='utf-8')
+file_handler.setLevel(logging.INFO)
+
+# 创建控制台处理器
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+
+# 创建格式化器
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
+console_handler.setFormatter(formatter)
+
+# 添加处理器到日志记录器
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
 
 class DigiKeyClient:
     def __init__(self):
@@ -15,9 +37,9 @@ class DigiKeyClient:
             'access_token': None,
             'expires_at': 0
         }
-        self.client_id = os.getenv('DIGIKEY_CLIENT_ID', 'your_client_id')
+        self.client_id = os.getenv('DIGIKEY_CLIENT_ID', 'MNaKOUFqcfvGlRASTDApOcLEs0v5Y34FlaBJvJIfU0IJTQdb')
 
-        self.client_secret = os.getenv('DIGIKEY_CLIENT_SECRET', 'your_client_secret')
+        self.client_secret = os.getenv('DIGIKEY_CLIENT_SECRET', 'GD0EfkONCW3xl0hZuyGqDpRHNH9s6DLzn3U8yx2kIYyCRflsA6kSHYOGKmGQSGPK')
 
 
     def get_access_token(self) -> str:
