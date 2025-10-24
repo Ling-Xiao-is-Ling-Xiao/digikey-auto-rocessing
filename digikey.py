@@ -37,9 +37,9 @@ class DigiKeyClient:
             'access_token': None,
             'expires_at': 0
         }
-        self.client_id = os.getenv('DIGIKEY_CLIENT_ID', 'MNaKOUFqcfvGlRASTDApOcLEs0v5Y34FlaBJvJIfU0IJTQdb')
+        self.client_id = os.getenv('DIGIKEY_CLIENT_ID', 'your_digikey_client_id')
 
-        self.client_secret = os.getenv('DIGIKEY_CLIENT_SECRET', 'GD0EfkONCW3xl0hZuyGqDpRHNH9s6DLzn3U8yx2kIYyCRflsA6kSHYOGKmGQSGPK')
+        self.client_secret = os.getenv('DIGIKEY_CLIENT_SECRET', 'your_digikey_client_secret')
 
 
     def get_access_token(self) -> str:
@@ -81,6 +81,12 @@ class DigiKeyClient:
         :param manufacturer_id: 可选制造商ID，用于精确匹配
         :return: 产品详细信息字典
         """
+        from urllib.parse import quote
+        
+        # 对产品编号进行URL编码，处理特殊符号
+        # 保留一些可能在产品编号中的特殊字符，如连字符、点号等
+        encoded_product_number = quote(product_number, safe='-._~!$&\'()*+,;=:@')
+        
         access_token = self.get_access_token()
         headers = {
             "Authorization": access_token,
@@ -101,14 +107,30 @@ class DigiKeyClient:
         
         for attempt in range(max_retries):
             try:
-                url = f"https://api.digikey.com/products/v4/search/{product_number}/productdetails"
+                url = f"https://api.digikey.com/products/v4/search/{encoded_product_number}/productdetails"
+                logger.info(f"尝试API请求: {url}")
                 response = requests.get(url, headers=headers, params=params, timeout=10)
                 response.raise_for_status()
                 return response.json()
             except requests.exceptions.HTTPError as e:
-                logger.warning(f"API请求失败(尝试 {attempt + 1}/{max_retries}): {e.response.status_code} {e.response.text}")
+                error_msg = f"API请求失败(尝试 {attempt + 1}/{max_retries}): {e.response.status_code}"
+                
+                # 对于404错误，提供更详细的错误信息
+                if e.response.status_code == 404:
+                    error_detail = e.response.json().get('detail', '')
+                    if 'Requested Product' in error_detail and 'Not Found' in error_detail:
+                        error_msg += f" - 产品编号 '{product_number}' 未找到"
+                        if manufacturer_id:
+                            error_msg += f" (制造商ID: {manufacturer_id})"
+                        error_msg += "。请检查产品编号是否正确，或尝试提供更精确的制造商ID。"
+                    else:
+                        error_msg += f" - {error_detail}"
+                else:
+                    error_msg += f" {e.response.text}"
+                
+                logger.warning(error_msg)
                 if attempt == max_retries - 1:
-                    logger.error(f"API请求最终失败: {e.response.status_code} {e.response.text}")
+                    logger.error(f"API请求最终失败: {error_msg}")
                     return None
             except requests.exceptions.RequestException as e:
                 logger.warning(f"API请求失败(尝试 {attempt + 1}/{max_retries}): {e}")
