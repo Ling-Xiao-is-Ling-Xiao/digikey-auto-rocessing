@@ -41,7 +41,8 @@ def process_products(excel_path, sheet_name, product_number_column, output_colum
         client = DigiKeyClient()
         logger.info("成功创建DigiKey客户端")
         
-        data = read_excel_data(excel_path, sheet_name, product_number_column)
+        # 读取数据并获取表头行号
+        data, header_row, header_column = read_excel_data(excel_path, sheet_name, product_number_column, return_header_info=True)
         if not data:
             error_msg = '未获取到有效的产品数据'
             logger.error(error_msg)
@@ -128,7 +129,7 @@ def process_products(excel_path, sheet_name, product_number_column, output_colum
         }
         
         # 写入Excel（多列数据）
-        write_result = write_multiple_columns(excel_path, sheet_name, columns_data)
+        write_result = write_multiple_columns(excel_path, sheet_name, columns_data, max_search_rows=10, reference_header=product_number_column, reference_header_row=header_row)
         if isinstance(write_result, dict) and write_result.get('status') == 'error':
             logger.error(f"写入Excel失败: {write_result.get('message')}")
             return write_result

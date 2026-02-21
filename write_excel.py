@@ -29,7 +29,17 @@ console_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 logger.addHandler(console_handler)
 
-def read_excel_data(excel_path, sheet_name, header_name):
+def read_excel_data(excel_path, sheet_name, header_name, max_search_rows=10, return_header_info=False):
+    """
+    读取Excel文件中指定表头列的数据
+    
+    参数:
+        excel_path: Excel文件路径
+        sheet_name: 工作表名称
+        header_name: 表头名称
+        max_search_rows: 最大搜索行数，用于查找表头
+        return_header_info: 是否返回表头信息
+    """
     logger.info(f"开始读取Excel文件: {excel_path}, 工作表: {sheet_name}, 表头: {header_name}")
     
     try:
@@ -47,30 +57,43 @@ def read_excel_data(excel_path, sheet_name, header_name):
         sheet = workbook[sheet_name]
         logger.info(f"成功选择工作表: {sheet_name}")
         
-        # 查找表头所在列
+        # 智能查找表头所在行和列
+        header_row = None
         header_column = None
-        for cell in sheet[1]:  # 假设表头在第一行
-            if cell.value == header_name:
-                header_column = cell.column
-                logger.info(f"找到表头 '{header_name}' 在第 {header_column} 列")
+        
+        # 搜索前max_search_rows行查找表头
+        for row_num in range(1, min(max_search_rows + 1, sheet.max_row + 1)):
+            for cell in sheet[row_num]:
+                if cell.value == header_name:
+                    header_row = row_num
+                    header_column = cell.column
+                    logger.info(f"找到表头 '{header_name}' 在第 {header_row} 行第 {header_column} 列")
+                    break
+            if header_row:
                 break
                 
-        if not header_column:
-            error_msg = f"表头 '{header_name}' 未找到"
+        if not header_row or not header_column:
+            error_msg = f"表头 '{header_name}' 未找到（搜索了前{max_search_rows}行）"
             logger.error(error_msg)
             raise Exception(error_msg)
         
         # 从表头下方读取所有数据
         data = []
-        for row in sheet.iter_rows(min_row=2, min_col=header_column, max_col=header_column):
+        start_row = header_row + 1  # 从表头下一行开始读取
+        for row in sheet.iter_rows(min_row=start_row, min_col=header_column, max_col=header_column):
             if row[0].value:
                 data.append(str(row[0].value).strip())
         
         if not data:
             logger.warning("未找到有效数据")
+            if return_header_info:
+                return [], header_row, header_column
             return []
         
         logger.info(f"成功读取 {len(data)} 条数据")
+        
+        if return_header_info:
+            return data, header_row, header_column
         return data
         
     except Exception as e:
@@ -79,7 +102,18 @@ def read_excel_data(excel_path, sheet_name, header_name):
         raise Exception(error_msg)
 
 
-def write_excel_data(excel_path, sheet_name, header_name, data):
+def write_excel_data(excel_path, sheet_name, header_name, data, max_search_rows=10, header_row=None):
+    """
+    写入数据到Excel文件中指定表头列
+    
+    参数:
+        excel_path: Excel文件路径
+        sheet_name: 工作表名称
+        header_name: 表头名称
+        data: 要写入的数据列表
+        max_search_rows: 最大搜索行数，用于查找表头
+        header_row: 表头行号（如果已知，可提高性能）
+    """
     logger.info(f"开始写入Excel文件: {excel_path}, 工作表: {sheet_name}, 表头: {header_name}, 数据量: {len(data) if data else 0}")
     
     try:
@@ -99,22 +133,44 @@ def write_excel_data(excel_path, sheet_name, header_name, data):
         sheet = workbook[sheet_name]
         logger.info(f"成功选择工作表: {sheet_name}")
         
-        # 查找表头所在列
+        # 查找表头所在列（如果已知表头行号，直接在该行查找）
         header_column = None
-        for cell in sheet[1]:
-            if cell.value == header_name:
-                header_column = cell.column
-                logger.info(f"找到现有表头 '{header_name}' 在第 {header_column} 列")
-                break
+        
+        if header_row is not None:
+            # 使用已知的表头行号
+            logger.info(f"使用已知表头行号: {header_row}")
+            for cell in sheet[header_row]:
+                if cell.value == header_name:
+                    header_column = cell.column
+                    logger.info(f"找到现有表头 '{header_name}' 在第 {header_row} 行第 {header_column} 列")
+                    break
+        else:
+            # 搜索前max_search_rows行查找表头
+            for row_num in range(1, min(max_search_rows + 1, sheet.max_row + 1)):
+                for cell in sheet[row_num]:
+                    if cell.value == header_name:
+                        header_row = row_num
+                        header_column = cell.column
+                        logger.info(f"找到现有表头 '{header_name}' 在第 {header_row} 行第 {header_column} 列")
+                        break
+                if header_row:
+                    break
         
         if not header_column:
+            # 如果未找到表头，创建新表头
+            if header_row is None:
+                header_row = 1  # 默认在第一行创建
             header_column = sheet.max_column + 1
-            sheet.cell(row=1, column=header_column, value=header_name)
-            logger.info(f"创建新表头 '{header_name}' 在第 {header_column} 列")
+            sheet.cell(row=header_row, column=header_column, value=header_name)
+            logger.info(f"创建新表头 '{header_name}' 在第 {header_row} 行第 {header_column} 列")
         
-        # 写入数据（不清空原有数据，直接覆盖/追加）
-        for idx, value in enumerate(data, start=2):
-            sheet.cell(row=idx, column=header_column, value=value)
+        # 直接使用表头行号确定起始行
+        start_row = header_row + 1
+        
+        # 写入数据，确保行数匹配
+        for i, value in enumerate(data):
+            row_num = start_row + i
+            sheet.cell(row=row_num, column=header_column, value=value)
         
         workbook.save(excel_path)
         logger.info(f"成功保存Excel文件: {excel_path}")
@@ -128,7 +184,7 @@ def write_excel_data(excel_path, sheet_name, header_name, data):
         logger.error(error_msg, exc_info=True)
         return {'status': 'error', 'message': error_msg}
 
-def write_multiple_columns(excel_path, sheet_name, columns_data):
+def write_multiple_columns(excel_path, sheet_name, columns_data, max_search_rows=10, reference_header=None, reference_header_row=None):
     """
     写入多列数据到Excel文件
     
@@ -136,6 +192,9 @@ def write_multiple_columns(excel_path, sheet_name, columns_data):
         excel_path: Excel文件路径
         sheet_name: 工作表名称
         columns_data: 字典，键为列名，值为数据列表
+        max_search_rows: 最大搜索行数，用于查找表头
+        reference_header: 参考表头名称（用于确定表头行号）
+        reference_header_row: 参考表头行号（如果已知）
     """
     logger.info(f"开始写入多列数据到Excel文件: {excel_path}, 工作表: {sheet_name}, 列数: {len(columns_data) if columns_data else 0}")
     
@@ -156,26 +215,53 @@ def write_multiple_columns(excel_path, sheet_name, columns_data):
         sheet = workbook[sheet_name]
         logger.info(f"成功选择工作表: {sheet_name}")
         
+        # 确定表头行号
+        header_row = reference_header_row
+        
+        if header_row is None and reference_header:
+            # 通过参考表头确定表头行号
+            logger.info(f"通过参考表头 '{reference_header}' 确定表头行号")
+            for row_num in range(1, min(max_search_rows + 1, sheet.max_row + 1)):
+                for cell in sheet[row_num]:
+                    if cell.value == reference_header:
+                        header_row = row_num
+                        logger.info(f"找到参考表头 '{reference_header}' 在第 {header_row} 行")
+                        break
+                if header_row:
+                    break
+        
+        if header_row is None:
+            # 如果没有参考表头，使用第一行作为默认表头行
+            header_row = 1
+            logger.info(f"使用默认表头行号: {header_row}")
+        
         # 处理每一列数据
         for header_name, data in columns_data.items():
             logger.info(f"处理列 '{header_name}', 数据量: {len(data) if data else 0}")
             
             # 查找表头所在列
             header_column = None
-            for cell in sheet[1]:
+            
+            # 在已知的表头行中查找表头
+            for cell in sheet[header_row]:
                 if cell.value == header_name:
                     header_column = cell.column
-                    logger.info(f"找到现有表头 '{header_name}' 在第 {header_column} 列")
+                    logger.info(f"找到现有表头 '{header_name}' 在第 {header_row} 行第 {header_column} 列")
                     break
             
             if not header_column:
+                # 如果未找到表头，创建新表头
                 header_column = sheet.max_column + 1
-                sheet.cell(row=1, column=header_column, value=header_name)
-                logger.info(f"创建新表头 '{header_name}' 在第 {header_column} 列")
+                sheet.cell(row=header_row, column=header_column, value=header_name)
+                logger.info(f"创建新表头 '{header_name}' 在第 {header_row} 行第 {header_column} 列")
             
-            # 写入数据（从第2行开始）
-            for idx, value in enumerate(data, start=2):
-                sheet.cell(row=idx, column=header_column, value=value)
+            # 直接使用表头行号确定起始行
+            start_row = header_row + 1
+            
+            # 写入数据，确保行数匹配
+            for i, value in enumerate(data):
+                row_num = start_row + i
+                sheet.cell(row=row_num, column=header_column, value=value)
         
         workbook.save(excel_path)
         logger.info(f"成功保存Excel文件: {excel_path}")

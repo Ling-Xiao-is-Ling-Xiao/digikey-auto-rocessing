@@ -166,7 +166,8 @@ def process_products_task(filename, sheet_name, column_name, result_column_name=
         
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         client = DigiKeyClient()
-        data = read_excel_data(filepath, sheet_name, column_name)
+        # 读取数据并获取表头行号
+        data, header_row, header_column = read_excel_data(filepath, sheet_name, column_name, return_header_info=True)
         
         if not data:
             logger.warning("未获取到有效的产品数据")
@@ -266,7 +267,7 @@ def process_products_task(filename, sheet_name, column_name, result_column_name=
                 header = custom_headers.get(field, f"{output_column}_{field_mapping[field]}")
                 columns_data[header] = [results.get(p, {}).get(field, '') for p in data]
         
-        write_result = write_multiple_columns(filepath, sheet_name, columns_data)
+        write_result = write_multiple_columns(filepath, sheet_name, columns_data, max_search_rows=10, reference_header=column_name, reference_header_row=header_row)
         
         if isinstance(write_result, dict) and write_result.get('status') == 'error':
             error_msg = f'写入Excel失败: {write_result.get("message")}'
